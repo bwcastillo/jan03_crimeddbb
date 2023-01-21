@@ -34,7 +34,6 @@ data
 
 #https://data.cityofnewyork.us/resource/8h9b-rp9u.geojson
 
-
 #https://data.cityofnewyork.us/browse?Dataset-Information_Agency=Police+Department+%28NYPD%29&limitTo=datasets
 #https://data.cityofnewyork.us/Public-Safety/Motor-Vehicle-Collisions-Crashes/h9gi-nx95
 #https://data.cityofnewyork.us/Public-Safety/NYPD-Complaint-Data-Historic/qgea-i56i
@@ -49,8 +48,93 @@ data
 #https://data.cityofnewyork.us/Public-Safety/NYPD-Criminal-Court-Summons-Incident-Level-Data-Ye/mv4k-y93f
 #https://data.cityofnewyork.us/Public-Safety/NYPD-Criminal-Court-Summons-Historic-/sv2w-rv3k
 
-
+#Examples how to get directly in geojson
 shooting_ny <- geojsonio::geojson_sf("https://data.cityofnewyork.us/resource/833y-fsy8.geojson?%24limit=5000&%24%24app_token=59LeXuU7FNOMnnOJxik8Cs47y")
 arrests_ny <- geojsonio::geojson_sf("https://data.cityofnewyork.us/resource/8h9b-rp9u.geojson?%24limit=10000&%24%24app_token=59LeXuU7FNOMnnOJxik8Cs47y")
 
-test <- sf::st_read("C:\\Users\\bryan\\PycharmProjects\\spatial_python\\data\\nypd_arrest_historic.geojson")
+#Saving automatically
+
+getOption('timeout')#See value variable time out
+options(timeout=360)#Change variable timeout 
+
+#CSV
+download.file("https://data.cityofnewyork.us/resource/8h9b-rp9u.csv?%24limit=5308876&%24%24app_token=59LeXuU7FNOMnnOJxik8Cs47y", "output/nypd-arrest-historic.csv")
+
+#Geojson
+download.file("https://data.cityofnewyork.us/resource/8h9b-rp9u.geojson?%24limit=5308876&%24%24app_token=59LeXuU7FNOMnnOJxik8Cs47y", "output/nypd-arrest-historic.geojson")
+
+#Other way to Read from the url and write as csv 
+write.csv(read.csv("https://data.cityofnewyork.us/resource/8h9b-rp9u.csv?%24limit=5308876&%24%24app_token=59LeXuU7FNOMnnOJxik8Cs47y"), "output/nypd-arrest-historic.csv")
+#write.csv("https://data.cityofnewyork.us/resource/8h9b-rp9u.csv?%24limit=5308876&%24%24app_token=59LeXuU7FNOMnnOJxik8Cs47y", "output/nypd-arrest-historic.csv")
+
+#How to read from the url and save as 7zip
+install.packages("archive") #Interesting package
+readr::write_csv(readr::read_csv("https://data.cityofnewyork.us/resource/8h9b-rp9u.csv?%24limit=5308876&%24%24app_token=59LeXuU7FNOMnnOJxik8Cs47y"), archive_write("output/nypdarresthistoric.7zip", "nypdarresthistoric.csv", format='7zip'))
+
+# Load the data to Postgresql and PosGIS ----------------------------------
+library(RPostgreSQL)
+library(DBI)
+library(sf)
+
+
+fun_connect<-function(){dbConnect(RPostgres::Postgres(),
+                                  dbname='censos',
+                                  host='localhost',
+                                  port=5432,
+                                  user='postgres',
+                                  password='adminpass',
+                                  options= '-c search_path=censos'
+                                  )}
+
+conn<-fun_connect()
+
+sf::st_write_db(st_read("output/nypd-arrest-historic.geojson"), #Doesn't work if I try to open from geojsonio
+         dsn= conn, layer="ny_arrest_historic",overwrite=F,append=F)
+
+sf::dbWriteTable(conn=conn, st_read("output/nypd-arrest-historic.geojson"),"sf")
+
+#See how does it work st_write from sf documentation:
+# https://r-spatial.github.io/sf/reference/st_write.html
+#See how does it work dbWriteTable:
+# https://dbi.r-dbi.org/reference/dbwritetable
+#Samme issue in windows:
+# https://github.com/r-spatial/sf/issues/60
+# https://github.com/r-spatial/sf/issues/1703 Same issue in MAC
+#A closer approach 
+# https://github.com/r-spatial/sf/issues/1693
+# Seeing driver issues ----------------------------------------------------
+st_drivers() %>% 
+  filter(grepl("Post", name))
+
+"PostgreSQL" %in% st_drivers()$name
+
+"ARREST_KEY	VARCHAR(15),
+ARREST_DATE	DATE,
+PD_CD	REAL(15),
+PD_DESC	VARCHAR(15),
+KY_CD	REAL,
+OFNS_DESC VARCHAR(15),
+LAW_CODE	VARCHAR(15),
+LAW_CAT_CD VARCHAR(15),
+ARREST_BORO VARCHAR(15),
+ARREST_PRECINCT REAL,
+JURISDICTION_CODE REAL,
+AGE_GROUP VARCHAR(15),
+PERP_SEX VARCHAR(15),
+PERP_RACE VARCHAR(15),
+X_COORD_CD VARCHAR(15),
+Y_COORD_CD VARCHAR(15),
+Latitude REAL,
+Longitude REAL,
+Lon_Lat	geom(POINT, 4326)"
+# Writing table -----------------------------------------------------------
+
+#https://oliverstringham.com/blog/data-science-tutorials/setting-up-postgres-postgis-to-run-spatial-queries-in-r-tutorial/
+sf::dbWriteTable(conn=conn, value=st_read("output/nypd-arrest-historic.geojson"),name="nypd_arrest")
+
+
+
+# Trying rpostgis ---------------------------------------------------------
+library(rpostgis)
+#https://mablab.org/rpostgis/reference/pgInsert.html
+pgInsert(conn, name = c("censos","nypd_arrests_hist"), data.obj = as_Spatial(st_read("output/nypd-arrest-historic.geojson")))
