@@ -2,7 +2,7 @@
 # Getting & Opening the data ----------------------------------------------
 
 
-#Toronto datasets:
+# Toronto datasets --------------------------------------------------------
 library(opendatatoronto)
 
 #https://open.toronto.ca/dataset/theft-from-motor-vehicle/
@@ -65,17 +65,13 @@ download.file("https://data.cityofnewyork.us/resource/8h9b-rp9u.geojson?%24limit
 
 #Other way to Read from the url and write as csv 
 write.csv(read.csv("https://data.cityofnewyork.us/resource/8h9b-rp9u.csv?%24limit=5308876&%24%24app_token=59LeXuU7FNOMnnOJxik8Cs47y"), "output/nypd-arrest-historic.csv")
-#write.csv("https://data.cityofnewyork.us/resource/8h9b-rp9u.csv?%24limit=5308876&%24%24app_token=59LeXuU7FNOMnnOJxik8Cs47y", "output/nypd-arrest-historic.csv")
-
-#How to read from the url and save as 7zip
-install.packages("archive") #Interesting package
-readr::write_csv(readr::read_csv("https://data.cityofnewyork.us/resource/8h9b-rp9u.csv?%24limit=5308876&%24%24app_token=59LeXuU7FNOMnnOJxik8Cs47y"), archive_write("output/nypdarresthistoric.7zip", "nypdarresthistoric.csv", format='7zip'))
 
 # Load the data to Postgresql and PosGIS ----------------------------------
 library(RPostgreSQL)
 library(DBI)
 library(sf)
-
+library(rpostgis)
+library(tidyverse)
 
 fun_connect<-function(){dbConnect(RPostgres::Postgres(),
                                   dbname='censos',
@@ -88,25 +84,117 @@ fun_connect<-function(){dbConnect(RPostgres::Postgres(),
 
 conn<-fun_connect()
 
-sf::st_write_db(st_read("output/nypd-arrest-historic.geojson"), #Doesn't work if I try to open from geojsonio
-         dsn= conn, layer="ny_arrest_historic",overwrite=F,append=F)
+# Seeing drivers ----------------------------------------------------------
 
-sf::dbWriteTable(conn=conn, st_read("output/nypd-arrest-historic.geojson"),"sf")
-
-#See how does it work st_write from sf documentation:
-# https://r-spatial.github.io/sf/reference/st_write.html
-#See how does it work dbWriteTable:
-# https://dbi.r-dbi.org/reference/dbwritetable
-#Samme issue in windows:
-# https://github.com/r-spatial/sf/issues/60
-# https://github.com/r-spatial/sf/issues/1703 Same issue in MAC
-#A closer approach 
-# https://github.com/r-spatial/sf/issues/1693
-# Seeing driver issues ----------------------------------------------------
 st_drivers() %>% 
   filter(grepl("Post", name))
 
 "PostgreSQL" %in% st_drivers()$name
+
+#dbDisconnect(conn)
+
+# Changing postgis schema -------------------------------------------------
+
+dbSendQuery(conn, "UPDATE pg_extension
+            SET extrelocatable = true
+            WHERE extname = 'postgis';")
+            
+dbSendQuery(conn,"ALTER EXTENSION postgis
+            SET SCHEMA censos;")
+            
+dbSendQuery(conn,"ALTER EXTENSION postgis
+            UPDATE TO \"3.1.0\";")
+            
+dbSendQuery(conn,"ALTER EXTENSION postgis
+            UPDATE TO \"3.1.0\";")
+
+# First try ---------------------------------------------------------------
+
+#CSV: It works
+sf::st_write(read.csv("https://data.cityofnewyork.us/resource/8h9b-rp9u.csv?%24limit=5000&%24%24app_token=59LeXuU7FNOMnnOJxik8Cs47y"),
+             dsn= conn, layer="ny_shotingt_historic",delete_layer=T,append=F)
+
+#SF: To works, it was necessary to verify that postgis extension was associated to our schema 
+sf::st_write(geojsonio::geojson_sf("https://data.cityofnewyork.us/resource/833y-fsy8.geojson?%24limit=5308876&%24%24app_token=59LeXuU7FNOMnnOJxik8Cs47y"),
+             dsn= conn,
+             layer="ny_shoting_historic",delete_layer=T,append=F,
+             driver="PostgreSQL/PostGIS")
+
+
+sf::st_write(st_read("https://data.cityofnewyork.us/resource/8h9b-rp9u.geojson?%24limit=2000000&%24%24app_token=59LeXuU7FNOMnnOJxik8Cs47y"),"output/nyp_arrest_hist.gpkg")
+#It doesnt work sf::st_write(st_read("https://data.cityofnewyork.us/resource/8h9b-rp9u.geojson?%24limit=5308876&%24%24app_token=59LeXuU7FNOMnnOJxik8Cs47y"),"output/nyp_arrest_hist.gpkg")
+
+test <- st_read("https://data.cityofnewyork.us/resource/8h9b-rp9u.geojson?%24limit=530887&%24%24app_token=59LeXuU7FNOMnnOJxik8Cs47y")
+#ogr2ogr -f GPKG dst.gpkg https://data.cityofnewyork.us/resource/8h9b-rp9u.geojson?%24limit=530887&%24%24app_token=59LeXuU7FNOMnnOJxik8Cs47y -nln layerOne
+
+#Seeing row numbers
+query <- dbSendQuery(conn, "SELECT count(geometry) AS exact_count FROM censos.ny_shoting_historic;")
+dbFetch(query)
+
+#dbSendQuery(conn, "DROP TABLE ny_shoting_historic ;")
+
+# Creating a function to load db from scratch db to postgresql/pos --------
+
+create_postgis <-  function(x,y,z){
+  x
+  y
+  z
+  query <- sf::st_write(st_read(paste0("https://data.cityofnewyork.us/resource/",y,".geojson?%24limit=",z,"&%24%24app_token=59LeXuU7FNOMnnOJxik8Cs47y")) %>% 
+                          st_make_valid() %>%
+                          filter(!st_is_empty(.)) %>%
+                          st_set_crs(.,4326), IDs = "geometry",
+                        dsn= conn,
+                        layer=x,
+                        delete_layer=T,
+                        append=F,
+                        driver="PostgreSQL/PostGIS")
+  return(query)
+}
+
+create_postgis("nypd_arrests_historic","8h9b-rp9u", "4000000")
+create_postgis("collisions_crashes","h9gi-nx95")
+create_postgis("nypd_shoting_historic","833y-fsy8","1000000")
+
+# Trying rpostgis ---------------------------------------------------------
+library(rpostgis)
+library(tidyverse)
+#https://mablab.org/rpostgis/reference/pgInsert.html
+fun_connect<-function(){dbConnect(RPostgres::Postgres(),
+                                  dbname='censos',
+                                  host='localhost',
+                                  port=5432,
+                                  user='postgres',
+                                  password='adminpass',
+                                  options= '-c search_path=censos'
+)}
+
+conn<-fun_connect()
+
+pgInsert(conn, name = c("censos","nypd_shoting_hist"),
+         data.obj = as_Spatial(st_read("https://data.cityofnewyork.us/resource/833y-fsy8.geojson?%24limit=5000&%24%24app_token=59LeXuU7FNOMnnOJxik8Cs47y") %>%
+                                 st_make_valid() %>%
+                                 filter(!st_is_empty(.)) %>%
+                                 st_set_crs(.,4326), IDs = "geometry"),
+         geom = "geometry",
+         partial.match = TRUE)
+
+dbDisconnect(conn)
+
+
+library(sf)
+sf_extSoftVersion()
+
+
+# More old-school methods  ------------------------------------------------
+
+
+# Writing table -----------------------------------------------------------
+#How to read from the url and save as 7zip
+
+install.packages("archive") #Interesting package
+readr::write_csv(readr::read_csv("https://data.cityofnewyork.us/resource/8h9b-rp9u.csv?%24limit=5308876&%24%24app_token=59LeXuU7FNOMnnOJxik8Cs47y"), archive_write("output/nypdarresthistoric.7zip", "nypdarresthistoric.csv", format='7zip'))
+
+#https://oliverstringham.com/blog/data-science-tutorials/setting-up-postgres-postgis-to-run-spatial-queries-in-r-tutorial/
 
 "ARREST_KEY	VARCHAR(15),
 ARREST_DATE	DATE,
@@ -127,14 +215,3 @@ Y_COORD_CD VARCHAR(15),
 Latitude REAL,
 Longitude REAL,
 Lon_Lat	geom(POINT, 4326)"
-# Writing table -----------------------------------------------------------
-
-#https://oliverstringham.com/blog/data-science-tutorials/setting-up-postgres-postgis-to-run-spatial-queries-in-r-tutorial/
-sf::dbWriteTable(conn=conn, value=st_read("output/nypd-arrest-historic.geojson"),name="nypd_arrest")
-
-
-
-# Trying rpostgis ---------------------------------------------------------
-library(rpostgis)
-#https://mablab.org/rpostgis/reference/pgInsert.html
-pgInsert(conn, name = c("censos","nypd_arrests_hist"), data.obj = as_Spatial(st_read("output/nypd-arrest-historic.geojson")))
