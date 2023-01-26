@@ -1,8 +1,8 @@
 
-# Getting & Opening the data ----------------------------------------------
+# 1. Getting & Opening the data ----------------------------------------------
 
 
-# Toronto datasets --------------------------------------------------------
+# 1.1 Toronto datasets --------------------------------------------------------
 library(opendatatoronto)
 
 #https://open.toronto.ca/dataset/theft-from-motor-vehicle/
@@ -30,7 +30,7 @@ data <- filter(datastore_resources, row_number()==1) %>% get_resource()
 data
 
 
-# New york:  --------------------------------------------------------------
+# 1.2 New york:  --------------------------------------------------------------
 
 #https://data.cityofnewyork.us/resource/8h9b-rp9u.geojson
 
@@ -48,23 +48,73 @@ data
 #https://data.cityofnewyork.us/Public-Safety/NYPD-Criminal-Court-Summons-Incident-Level-Data-Ye/mv4k-y93f
 #https://data.cityofnewyork.us/Public-Safety/NYPD-Criminal-Court-Summons-Historic-/sv2w-rv3k
 
-#Examples how to get directly in geojson
-shooting_ny <- geojsonio::geojson_sf("https://data.cityofnewyork.us/resource/833y-fsy8.geojson?%24limit=5000&%24%24app_token=59LeXuU7FNOMnnOJxik8Cs47y")
-arrests_ny <- geojsonio::geojson_sf("https://data.cityofnewyork.us/resource/8h9b-rp9u.geojson?%24limit=10000&%24%24app_token=59LeXuU7FNOMnnOJxik8Cs47y")
+
+#2. How it can be get  ------------------------------------------------------
+
+#2.1 Examples how to get directly in GEOJSON
+shooting_ny <- geojsonio::geojson_sf("https://data.cityofnewyork.us/resource/833y-fsy8.geojson?%24limit=5000&%24%24app_token=PUTPERSONALTOKEN")
+arrests_ny <- geojsonio::geojson_sf("https://data.cityofnewyork.us/resource/8h9b-rp9u.geojson?%24limit=10000&%24%24app_token=PUTPERSONALTOKEN")
 
 #Saving automatically
 
 getOption('timeout')#See value variable time out
 options(timeout=360)#Change variable timeout 
 
-#CSV
-download.file("https://data.cityofnewyork.us/resource/8h9b-rp9u.csv?%24limit=5308876&%24%24app_token=59LeXuU7FNOMnnOJxik8Cs47y", "output/nypd-arrest-historic.csv")
+#Download.file= CSV 
+download.file("https://data.cityofnewyork.us/resource/8h9b-rp9u.csv?%24limit=5308876&%24%24app_token=PUTPERSONALTOKEN", "output/nypd-arrest-historic.csv")
 
-#Geojson
-download.file("https://data.cityofnewyork.us/resource/8h9b-rp9u.geojson?%24limit=5308876&%24%24app_token=59LeXuU7FNOMnnOJxik8Cs47y", "output/nypd-arrest-historic.geojson")
+#Download.file= Geojson
+download.file("https://data.cityofnewyork.us/resource/8h9b-rp9u.geojson?%24limit=5308876&%24%24app_token=PUTPERSONALTOKEN", "output/nypd-arrest-historic.geojson")
 
-#Other way to Read from the url and write as csv 
-write.csv(read.csv("https://data.cityofnewyork.us/resource/8h9b-rp9u.csv?%24limit=5308876&%24%24app_token=59LeXuU7FNOMnnOJxik8Cs47y"), "output/nypd-arrest-historic.csv")
+#Write.csv=Other way to Read from the url and write as csv 
+write.csv(read.csv("https://data.cityofnewyork.us/resource/8h9b-rp9u.csv?%24limit=5308876&%24%24app_token=PUTPERSONALTOKEN"), "output/nypd-arrest-historic.csv")
+
+#5.6 Million rows dataset
+
+#CSV: VROOM AND READR::READ_CSV
+#If is used readr::read_csv <- https://github.com/tidyverse/vroom
+#Sys.setenv(VROOM_CONNECTION_SIZE=10000000000000000)
+
+#CSV AND GEOJSON
+# test <- st_as_sf(read.csv2("https://data.cityofnewyork.us/resource/8h9b-rp9u.geojson?%24limit=5308876&%24%24app_token=PUTPERSONALTOKEN"),
+#                  coords="Lon_Lat") %>% 
+#   st_make_valid() %>%
+#   filter(!st_is_empty(.)) %>%
+#   st_set_crs(.,4326)
+
+#CSV with vroom
+#It can't open 6 MIllion data as csv
+Sys.setenv(VROOM_CONNECTION_SIZE=9999999999)
+test <- vroom::vroom("https://data.cityofnewyork.us/resource/8h9b-rp9u.geojson?%24limit=5308876&%24%24app_token=PUTPERSONALTOKEN")
+
+#GEOJSON st_read
+test <- st_read("https://data.cityofnewyork.us/resource/8h9b-rp9u.geojson?%24limit=5308876&%24%24app_token=PUTPERSONALTOKEN")
+#It doesnt work sf::st_write(st_read("https://data.cityofnewyork.us/resource/8h9b-rp9u.geojson?%24limit=5308876&%24%24app_token=PUTPERSONALTOKEN"),"output/nyp_arrest_hist.gpkg")
+
+
+#CSV AND GEOJSON
+sf::st_write(st_as_sf(read.csv("https://data.cityofnewyork.us/resource/8h9b-rp9u.geojson?%24limit=5308876&%24%24app_token=PUTPERSONALTOKEN"),
+                      coords="Lon_Lat") %>% 
+               st_make_valid() %>%
+               filter(!st_is_empty(.)) %>%
+               st_set_crs(.,4326), 
+             IDs = "geometry",
+             dsn= conn,
+             layer=x,
+             delete_layer=T,
+             append=F,
+             driver="PostgreSQL/PostGIS")
+
+
+
+getOption('timeout')#See value variable time out
+options(timeout=3600)#Change variable timeout 
+
+#GEOSONIO NOT WORK
+test <- geojsonio::geojson_sf("https://data.cityofnewyork.us/resource/8h9b-rp9u.geojson?%24limit=5308876&%24%24app_token=PUTPERSONALTOKEN")
+
+#ST READ NOT WORK
+test <- st_read()
 
 # Load the data to Postgresql and PosGIS ----------------------------------
 library(RPostgreSQL)
@@ -111,21 +161,17 @@ dbSendQuery(conn,"ALTER EXTENSION postgis
 # First try ---------------------------------------------------------------
 
 #CSV: It works
-sf::st_write(read.csv("https://data.cityofnewyork.us/resource/8h9b-rp9u.csv?%24limit=5000&%24%24app_token=59LeXuU7FNOMnnOJxik8Cs47y"),
+sf::st_write(read.csv("https://data.cityofnewyork.us/resource/8h9b-rp9u.csv?%24limit=5000&%24%24app_token=PUTPERSONALTOKEN"),
              dsn= conn, layer="ny_shotingt_historic",delete_layer=T,append=F)
 
 #SF: To works, it was necessary to verify that postgis extension was associated to our schema 
-sf::st_write(geojsonio::geojson_sf("https://data.cityofnewyork.us/resource/833y-fsy8.geojson?%24limit=5308876&%24%24app_token=59LeXuU7FNOMnnOJxik8Cs47y"),
+sf::st_write(geojsonio::geojson_sf("https://data.cityofnewyork.us/resource/833y-fsy8.geojson?%24limit=5308876&%24%24app_token=PUTPERSONALTOKEN"),
              dsn= conn,
              layer="ny_shoting_historic",delete_layer=T,append=F,
              driver="PostgreSQL/PostGIS")
 
 
-sf::st_write(st_read("https://data.cityofnewyork.us/resource/8h9b-rp9u.geojson?%24limit=2000000&%24%24app_token=59LeXuU7FNOMnnOJxik8Cs47y"),"output/nyp_arrest_hist.gpkg")
-#It doesnt work sf::st_write(st_read("https://data.cityofnewyork.us/resource/8h9b-rp9u.geojson?%24limit=5308876&%24%24app_token=59LeXuU7FNOMnnOJxik8Cs47y"),"output/nyp_arrest_hist.gpkg")
 
-test <- st_read("https://data.cityofnewyork.us/resource/8h9b-rp9u.geojson?%24limit=530887&%24%24app_token=59LeXuU7FNOMnnOJxik8Cs47y")
-#ogr2ogr -f GPKG dst.gpkg https://data.cityofnewyork.us/resource/8h9b-rp9u.geojson?%24limit=530887&%24%24app_token=59LeXuU7FNOMnnOJxik8Cs47y -nln layerOne
 
 #Seeing row numbers
 query <- dbSendQuery(conn, "SELECT count(geometry) AS exact_count FROM censos.ny_shoting_historic;")
@@ -139,7 +185,7 @@ create_postgis <-  function(x,y,z){
   x
   y
   z
-  query <- sf::st_write(st_read(paste0("https://data.cityofnewyork.us/resource/",y,".geojson?%24limit=",z,"&%24%24app_token=59LeXuU7FNOMnnOJxik8Cs47y")) %>% 
+  query <- sf::st_write(st_read(paste0("https://data.cityofnewyork.us/resource/",y,".geojson?%24limit=",z,"&%24%24app_token=PUTPERSONALTOKEN")) %>% 
                           st_make_valid() %>%
                           filter(!st_is_empty(.)) %>%
                           st_set_crs(.,4326), IDs = "geometry",
@@ -151,9 +197,10 @@ create_postgis <-  function(x,y,z){
   return(query)
 }
 
-create_postgis("nypd_arrests_historic","8h9b-rp9u", "4000000")
+create_postgis("nypd_arrests_historic","8h9b-rp9u", "4000000") #Problems depending of data amount
 create_postgis("collisions_crashes","h9gi-nx95")
 create_postgis("nypd_shoting_historic","833y-fsy8","1000000")
+
 
 # Trying rpostgis ---------------------------------------------------------
 library(rpostgis)
@@ -171,7 +218,7 @@ fun_connect<-function(){dbConnect(RPostgres::Postgres(),
 conn<-fun_connect()
 
 pgInsert(conn, name = c("censos","nypd_shoting_hist"),
-         data.obj = as_Spatial(st_read("https://data.cityofnewyork.us/resource/833y-fsy8.geojson?%24limit=5000&%24%24app_token=59LeXuU7FNOMnnOJxik8Cs47y") %>%
+         data.obj = as_Spatial(st_read("https://data.cityofnewyork.us/resource/833y-fsy8.geojson?%24limit=5000&%24%24app_token=PUTPERSONALTOKEN") %>%
                                  st_make_valid() %>%
                                  filter(!st_is_empty(.)) %>%
                                  st_set_crs(.,4326), IDs = "geometry"),
@@ -192,7 +239,7 @@ sf_extSoftVersion()
 #How to read from the url and save as 7zip
 
 install.packages("archive") #Interesting package
-readr::write_csv(readr::read_csv("https://data.cityofnewyork.us/resource/8h9b-rp9u.csv?%24limit=5308876&%24%24app_token=59LeXuU7FNOMnnOJxik8Cs47y"), archive_write("output/nypdarresthistoric.7zip", "nypdarresthistoric.csv", format='7zip'))
+readr::write_csv(readr::read_csv("https://data.cityofnewyork.us/resource/8h9b-rp9u.csv?%24limit=5308876&%24%24app_token=PUTPERSONALTOKEN"), archive_write("output/nypdarresthistoric.7zip", "nypdarresthistoric.csv", format='7zip'))
 
 #https://oliverstringham.com/blog/data-science-tutorials/setting-up-postgres-postgis-to-run-spatial-queries-in-r-tutorial/
 
