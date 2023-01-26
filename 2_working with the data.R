@@ -33,12 +33,12 @@ colnames(arrests_his)
 col_detail <- lapply(as.data.frame(test)[,c(2,4,6,9,10,11,13:18)], unique)
 
 #Shootings
-shootings <- st_read(conn, "nypd_shoting_historic") %>% 
+shootings <- st_read(conn, "nypd_shooting_historic") %>% 
   filter(!st_is_empty(.)) %>%
   st_set_crs(.,4326) 
 
 
-#Apparently, conceptually and according the available data, would be easier analyze shooting
+#Apparently, conceptually and according the available daata, would be easier analyze shooting
 #It would possible to analyze arrest but require more time maybe to apply manually the formulas
 #or to find ways to do easier the process
 
@@ -60,6 +60,17 @@ st_write(st_read("https://data.cityofnewyork.us/resource/7t3b-ywvw.geojson"),dsn
 
 unique(shootings$perp_age_group)
 
-dbSendQuery(conn,"SELECT ST_Intersects(borough, shooting) as freq_shoot
-            FROM (SELECT censos.borough_nyc.geometry as borough, censos.nypd_shooting_historic as shooting) as tiroteo")
+
+test <- dbSendQuery(conn,"SELECT ST_Intersects(nypd_shooting_historic.geometry, borough_nyc.geometry)
+            FROM nypd_shooting_historic, borough_nyc;")
+
+test <- dbFetch(test)
+
+#OR
+
+test <- st_read(conn,query="SELECT ST_Intersects(nypd_shooting_historic.geometry, borough_nyc.geometry)
+                FROM nypd_shooting_historic, borough_nyc;")
+
+test<- st_read(conn,query="SELECT boro_name FROM borough_nyc, nypd_shooting_historic
+                    WHERE ST_Intersects(nypd_shooting_historic.geometry, borough_nyc.geometry)")
 
