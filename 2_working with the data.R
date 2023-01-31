@@ -71,6 +71,7 @@ test <- dbFetch(test)
 test <- st_read(conn,query="SELECT ST_Intersects(nypd_shooting_historic.geometry, borough_nyc.geometry)
                 FROM nypd_shooting_historic, borough_nyc;")
 
-test<- st_read(conn,query="SELECT boro_name FROM borough_nyc, nypd_shooting_historic
+test<- st_read(conn,query="SELECT boro_name, perp_sex, vic_sex, occur_date, occur_time, perp_age_group, 
+                           vic_age_group, boroFROM borough_nyc, nypd_shooting_historic
                     WHERE ST_Intersects(nypd_shooting_historic.geometry, borough_nyc.geometry)")
 
