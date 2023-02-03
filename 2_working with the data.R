@@ -93,9 +93,35 @@ plot(read_sf(dsn=conn,layer="nypd_arrest_historic")# In this case works better t
      ,add=T) #It works but is hyper memory consumer
 
 
+
+# Trying others methods to open PostGIS data ------------------------------
+
 install.packages("rgdal")
 
 test <- st_read(dsn=conn,layer="nypd_shooting_historic")
 class(test)
 
 test <- rgdal::readOGR(dsn=conn,layer="nypd_arrest_historic")
+
+test <-dbReadTable(conn, "nypd_arrest_historic")#Suuuuuuper light process, maybe with Lat and Long attribute is possible do some easier
+
+class(test)
+library(pryr)
+mem_used()# Damn it said the true
+
+
+
+# Trying to plot with ggplot ----------------------------------------------
+
+ggplot(data=test, aes(x=longitude, y=latitude))+
+  geom_point() #Take long long to load, the best is QGIS I think 
+
+#Anyways is not worth to explore point patterns with all data in the map a lot of overlapping
+#slowness
+
+rm(test)
+
+#R-Spatial book give us the approach to use point-patterns in windows 
+#Also apply a function that it works to count the points in the different regular windos
+
+#What about to replicate this method with another administratives scales 
