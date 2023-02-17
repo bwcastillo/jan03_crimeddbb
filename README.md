@@ -134,7 +134,7 @@ st_write(st_read("https://data.cityofnewyork.us/api/geospatial/xn3r-zk6y?accessT
 
 [Intensity and Density](https://paezha.github.io/spatial-analysis-r/point-pattern-analysis-i.html#intensity-and-density)
 
-$$\lambda=frac{number of event}{unit area} $$
+$$\lambda=\frac{number of event}{unit area} $$
 
 ```R
 densities_block <- st_read(conn,query="SELECT block_nyc.geoid, count(nypd_shooting_historic.geometry)
