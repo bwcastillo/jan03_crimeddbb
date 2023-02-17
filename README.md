@@ -82,6 +82,7 @@ Events --- Shootings
 Events --- Arrests
 ```
 
+### Events
 
 #### Loading manually Arrest Events (big database >5M events)
 
@@ -98,15 +99,6 @@ sf::st_write(geojsonio::geojson_sf("https://data.cityofnewyork.us/resource/833y-
              driver="PostgreSQL/PostGIS")
 ```
 
-#### Density and Intensity 
-
-```R
-densities_block <- st_read(conn,query="SELECT block_nyc.geoid, count(nypd_shooting_historic.geometry)
-                                       FROM block_nyc
-                                       LEFT JOIN nypd_shooting_historic ON st_contains(block_nyc.geometry, nypd_shooting_historic.geometry)
-                                       GROUP BY block_nyc.geoid;")
-
-```
 
 ### Boundaries
 
