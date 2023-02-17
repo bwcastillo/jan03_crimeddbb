@@ -60,22 +60,6 @@ dbSendQuery(conn,"ALTER EXTENSION postgis
 
 ### Getting and loading data
 
-#### Big database manually
-
-```console
-ogr2ogr -f PostgreSQL PG:"host=localhost dbname=censos user=postgres password=adminpass port=5432 schemas=censos ACTIVE_SCHEMA=censos" -lco SCHEMA=censos nypd-arrest-historic.geojson -lco GEOMETRY_NAME=geometry
-```
-
-#### Sf method
-```#SF: To works, it was necessary to verify that postgis extension was associated to our schema 
-sf::st_write(geojsonio::geojson_sf("https://data.cityofnewyork.us/resource/833y-fsy8.geojson?%24limit=5308876&%24%24app_token=PUTPERSONALTOKEN"),
-             dsn= conn,
-             layer="ny_shooting_historic",delete_layer=T,append=F,
-             driver="PostgreSQL/PostGIS")
-```
-
-Databases to load 
-
 
 ```mermaid
 flowchart 
@@ -96,4 +80,65 @@ Administratives --- BlockGroups
 Administratives --- CensusBlocks
 Events --- Shootings
 Events --- Arrests
+```
+
+
+#### Loading manually Arrest Events (big database >5M events)
+
+```console
+ogr2ogr -f PostgreSQL PG:"host=localhost dbname=censos user=postgres password=adminpass port=5432 schemas=censos ACTIVE_SCHEMA=censos" -lco SCHEMA=censos nypd-arrest-historic.geojson -lco GEOMETRY_NAME=geometry
+```
+
+#### Loading manually Shootings Events
+```R
+#SF: To works, it was necessary to verify that postgis extension was associated to our schema 
+sf::st_write(geojsonio::geojson_sf("https://data.cityofnewyork.us/resource/833y-fsy8.geojson?%24limit=5308876&%24%24app_token=PUTPERSONALTOKEN"),
+             dsn= conn,
+             layer="ny_shooting_historic",delete_layer=T,append=F,
+             driver="PostgreSQL/PostGIS")
+```
+
+#### Density and Intensity 
+
+```R
+densities_block <- st_read(conn,query="SELECT block_nyc.geoid, count(nypd_shooting_historic.geometry)
+                                       FROM block_nyc
+                                       LEFT JOIN nypd_shooting_historic ON st_contains(block_nyc.geometry, nypd_shooting_historic.geometry)
+                                       GROUP BY block_nyc.geoid;")
+
+```
+
+### Boundaries
+
+#### Administrative divisions
+
+```R
+#Census Track: https://data.cityofnewyork.us/City-Government/2020-Census-Tracts-Tabular/63ge-mke6
+st_write(st_read("https://data.cityofnewyork.us/api/geospatial/63ge-mke6?accessType=DOWNLOAD&method=export&format=GeoJSON"),dsn = conn, 'ct_nyc')
+
+#Census block: https://data.cityofnewyork.us/City-Government/2020-Census-Tracts-Tabular/63ge-mke6
+st_write(st_read("https://data.cityofnewyork.us/api/geospatial/wmsu-5muw?accessType=DOWNLOAD&method=export&format=GeoJSON"),dsn = conn, 'block_nyc')
+```
+#### Unique division
+
+```R
+#Boroughs 
+st_write(st_read("https://data.cityofnewyork.us/resource/7t3b-ywvw.geojson"),dsn = conn, 'borough_nyc')
+
+#Community District
+st_write(st_read("https://data.cityofnewyork.us/api/geospatial/xn3r-zk6y?accessType=DOWNLOAD&method=export&format=GeoJSON"),dsn = conn, 'cdta_nyc')
+
+```
+
+### Density
+
+[Intensity and Density](https://paezha.github.io/spatial-analysis-r/point-pattern-analysis-i.html#intensity-and-density)
+
+$$\lambda=frac{number of event}{unit area} $$
+
+```R
+densities_block <- st_read(conn,query="SELECT block_nyc.geoid, count(nypd_shooting_historic.geometry)
+                                       FROM block_nyc
+                                       LEFT JOIN nypd_shooting_historic ON st_contains(block_nyc.geometry, nypd_shooting_historic.geometry)
+                                       GROUP BY block_nyc.geoid;")
 ```
