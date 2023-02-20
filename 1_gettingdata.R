@@ -162,12 +162,12 @@ dbSendQuery(conn,"ALTER EXTENSION postgis
 
 #CSV: It works
 sf::st_write(read.csv("https://data.cityofnewyork.us/resource/8h9b-rp9u.csv?%24limit=5000&%24%24app_token=PUTPERSONALTOKEN"),
-             dsn= conn, layer="ny_shotingt_historic",delete_layer=T,append=F)
+             dsn= conn, layer="ny_shooting_historic",delete_layer=T,append=F)
 
 #SF: To works, it was necessary to verify that postgis extension was associated to our schema 
 sf::st_write(geojsonio::geojson_sf("https://data.cityofnewyork.us/resource/833y-fsy8.geojson?%24limit=5308876&%24%24app_token=PUTPERSONALTOKEN"),
              dsn= conn,
-             layer="ny_shoting_historic",delete_layer=T,append=F,
+             layer="ny_shooting_historic",delete_layer=T,append=F,
              driver="PostgreSQL/PostGIS")
 
 
@@ -202,10 +202,12 @@ create_postgis("collisions_crashes","h9gi-nx95")
 create_postgis("nypd_shoting_historic","833y-fsy8","1000000")
 
 
-# Trying rpostgis ---------------------------------------------------------
+# Trying with rpostgis ---------------------------------------------------------
+
 library(rpostgis)
 library(tidyverse)
 #https://mablab.org/rpostgis/reference/pgInsert.html
+
 fun_connect<-function(){dbConnect(RPostgres::Postgres(),
                                   dbname='censos',
                                   host='localhost',
@@ -242,23 +244,3 @@ install.packages("archive") #Interesting package
 readr::write_csv(readr::read_csv("https://data.cityofnewyork.us/resource/8h9b-rp9u.csv?%24limit=5308876&%24%24app_token=PUTPERSONALTOKEN"), archive_write("output/nypdarresthistoric.7zip", "nypdarresthistoric.csv", format='7zip'))
 
 #https://oliverstringham.com/blog/data-science-tutorials/setting-up-postgres-postgis-to-run-spatial-queries-in-r-tutorial/
-
-"ARREST_KEY	VARCHAR(15),
-ARREST_DATE	DATE,
-PD_CD	REAL(15),
-PD_DESC	VARCHAR(15),
-KY_CD	REAL,
-OFNS_DESC VARCHAR(15),
-LAW_CODE	VARCHAR(15),
-LAW_CAT_CD VARCHAR(15),
-ARREST_BORO VARCHAR(15),
-ARREST_PRECINCT REAL,
-JURISDICTION_CODE REAL,
-AGE_GROUP VARCHAR(15),
-PERP_SEX VARCHAR(15),
-PERP_RACE VARCHAR(15),
-X_COORD_CD VARCHAR(15),
-Y_COORD_CD VARCHAR(15),
-Latitude REAL,
-Longitude REAL,
-Lon_Lat	geom(POINT, 4326)"

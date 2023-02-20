@@ -43,8 +43,39 @@ shootings <- st_read(conn, "nypd_shooting_historic") %>%
 ggplot(shootings[!is.na(shootings$perp_race),], aes(color=perp_race))+
   geom_sf()
 
+
+# Loading different scales ------------------------------------------------
+
+
+# Administratives scales --------------------------------------------------
+
+#Census Track: https://data.cityofnewyork.us/City-Government/2020-Census-Tracts-Tabular/63ge-mke6
+st_write(st_read("https://data.cityofnewyork.us/api/geospatial/63ge-mke6?accessType=DOWNLOAD&method=export&format=GeoJSON"),dsn = conn, 'ct_nyc')
+
+#Census block: https://data.cityofnewyork.us/City-Government/2020-Census-Tracts-Tabular/63ge-mke6
+st_write(st_read("https://data.cityofnewyork.us/api/geospatial/wmsu-5muw?accessType=DOWNLOAD&method=export&format=GeoJSON"),dsn = conn, 'block_nyc')
+
+
+
+# Unique scales -----------------------------------------------------------
+
 #Loading borough at PostGIS
 st_write(st_read("https://data.cityofnewyork.us/resource/7t3b-ywvw.geojson"),dsn = conn, 'borough_nyc')
+
+#Community District Tabulation Areas
+st_write(st_read("https://data.cityofnewyork.us/api/geospatial/xn3r-zk6y?accessType=DOWNLOAD&method=export&format=GeoJSON"),dsn = conn, 'cdta_nyc')
+
+#Neighborhood
+st_write(st_read("https://data.cityofnewyork.us/api/geospatial/9nt8-h7nd?accessType=DOWNLOAD&method=export&format=GeoJSON"),dsn = conn, 'neighborhood_nyc')
+
+# Polcies boundaries ------------------------------------------------------
+
+#Police Precincts
+#https://data.cityofnewyork.us/api/geospatial/78dh-3ptz?method=export&format=GeoJSON
+
+
+#NYPD Sectors
+#https://data.cityofnewyork.us/api/geospatial/eizi-ujye?method=export&format=GeoJSON
 
 
 #Querying intersects as table
@@ -55,7 +86,7 @@ test <- dbFetch(test)
 
 #OR
 
-#Querying intersects as shapefile
+#
 test <- st_read(conn,query="SELECT ST_Intersects(nypd_shooting_historic.geometry, borough_nyc.geometry)
                 FROM nypd_shooting_historic, borough_nyc;")
 
@@ -63,8 +94,6 @@ test <- st_read(conn,query="SELECT ST_Intersects(nypd_shooting_historic.geometry
 test<- st_read(conn,query="SELECT boro_name, perp_sex, vic_sex, occur_date, occur_time, perp_age_group, 
                            vic_age_group FROM borough_nyc, nypd_shooting_historic
                     WHERE ST_Intersects(nypd_shooting_historic.geometry, borough_nyc.geometry)")
-
-
 
 
 
@@ -125,3 +154,84 @@ rm(test)
 #Also apply a function that it works to count the points in the different regular windos
 
 #What about to replicate this method with another administratives scales 
+
+
+# Counting the frequency of each point in each scale ----------------------
+#https://www2.census.gov/geo/pdfs/reference/geodiagram.pdf
+#https://en.wikipedia.org/wiki/Administrative_divisions_of_New_York_(state)
+#https://ballotpedia.org/New_York_state_executive_offices
+
+
+
+test <- st_read(conn,query="SELECT ST_Contains(nypd_shooting_historic.geometry, borough_nyc.geometry)
+                FROM nypd_shooting_historic, borough_nyc;")
+
+test <- st_read(conn,query="SELECT  boro_name, statistical_murder_flag, vic_race FROM borough_nyc, nypd_shooting_historic
+                            WHERE ST_Contains(borough_nyc.geometry,nypd_shooting_historic.geometry);")
+
+test <- table(test)|>as.data.frame() #Funny
+
+sum(test$Freq)
+
+# Densities ---------------------------------------------------------------
+
+#First method: very slow
+#Count people in each borough
+# st_intersection(st_make_valid(st_read(conn,query='SELECT block_nyc.geoid, block_nyc.geometry FROM block_nyc')),
+#                 st_make_valid(st_read(conn,query='SELECT * FROM nypd_shooting_historic')))
+
+#Second method
+#Querying shootings
+shooting_block <- st_read(conn,query="SELECT block_nyc.geoid, count(nypd_shooting_historic.geometry)
+                                       FROM block_nyc
+                                       LEFT JOIN nypd_shooting_historic ON st_contains(block_nyc.geometry, nypd_shooting_historic.geometry)
+                                       GROUP BY block_nyc.geoid;")
+
+#Querying arrest
+arrests_block <- st_read(conn,query="SELECT block_nyc.geoid, count(nypd_arrest_historic.geometry)
+                                       FROM block_nyc
+                                       LEFT JOIN nypd_arrest_historic ON st_contains(block_nyc.geometry, nypd_arrest_historic.geometry)
+                                       GROUP BY block_nyc.geoid;")
+
+#Joining with geometry
+#Shooting
+shooting_block <- left_join(shooting_block, st_read(conn,layer = "block_nyc"), by="geoid")|> st_as_sf()
+#Arrest
+arrests_block <- left_join(arrests_block, st_read(conn,layer = "block_nyc"), by="geoid")|> st_as_sf()
+
+
+#Ploting shootings
+ggplot()+
+  geom_sf(data=shooting_block,aes(fill=as.integer(count)),colour=NA)+
+  scale_fill_gradient(low = 'pink', high='red', na.value = 'yellow')+
+  labs(fill='Number of Shootings', title='Number of Shootings')+
+  geom_sf(data = st_read(conn,layer = 'neighborhood_nyc'), fill=NA, linewidth = 0.5, color='green')+
+  geom_sf(data = st_read(conn,layer = 'borough_nyc'),fill=NA, linewidth = 1.3 ,color='gray')
+
+#Ploting arrests
+ggplot()+
+  geom_sf(data=arrests_block,aes(fill=as.integer(count)),colour=NA)+
+  scale_fill_gradient(low = 'pink', high='red', na.value = 'yellow')+
+  labs(fill='Number of Arrests' , title='Number of Arrest')+
+  geom_sf(data = st_read(conn,layer = 'neighborhood_nyc'), fill=NA, linewidth = 0.5, color='green')+
+  geom_sf(data = st_read(conn,layer = 'borough_nyc'),fill=NA, linewidth = 1.3 ,color='gray')
+  
+  
+st_read(conn,layer = 'neighborhood_nyc')
+
+st_as_sf(as.data.frame(test), 'the_geom')
+st_geometry(test,'the_geom')
+
+#Ploting shootings
+
+terrain.colors(1)
+
+#Shootings by borough
+
+#Race victim killed
+
+#Exploring Heterogeneity, Dependence, Sparsity, Uncertainty 
+#Heterogeneity: https://www.crimrxiv.com/pub/44brr2tx/release/1
+#https://postgis.net/workshops/postgis-intro/
+
+
