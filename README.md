@@ -75,6 +75,7 @@ Geographies --- Administratives
 Geographies --- DivisionUnique
 DivisionUnique --- Boroughs
 DivisionUnique --- CommunityDistricts
+Boroughs --- Neighborhoods
 Administratives --- CensusTrack
 Administratives --- BlockGroups
 Administratives --- CensusBlocks
@@ -120,6 +121,9 @@ st_write(st_read("https://data.cityofnewyork.us/resource/7t3b-ywvw.geojson"),dsn
 #Community District
 st_write(st_read("https://data.cityofnewyork.us/api/geospatial/xn3r-zk6y?accessType=DOWNLOAD&method=export&format=GeoJSON"),dsn = conn, 'cdta_nyc')
 
+#Neighborhood
+st_write(st_read("https://data.cityofnewyork.us/api/geospatial/9nt8-h7nd?accessType=DOWNLOAD&method=export&format=GeoJSON"),dsn = conn, 'neighborhood_nyc')
+
 ```
 
 ### Density
@@ -129,8 +133,44 @@ st_write(st_read("https://data.cityofnewyork.us/api/geospatial/xn3r-zk6y?accessT
 $$\lambda=\frac{number of event}{unit area} $$
 
 ```R
-densities_block <- st_read(conn,query="SELECT block_nyc.geoid, count(nypd_shooting_historic.geometry)
+#Querying shootings
+shooting_block <- st_read(conn,query="SELECT block_nyc.geoid, count(nypd_shooting_historic.geometry)
                                        FROM block_nyc
                                        LEFT JOIN nypd_shooting_historic ON st_contains(block_nyc.geometry, nypd_shooting_historic.geometry)
                                        GROUP BY block_nyc.geoid;")
+
+#Querying arrest
+arrests_block <- st_read(conn,query="SELECT block_nyc.geoid, count(nypd_arrest_historic.geometry)
+                                       FROM block_nyc
+                                       LEFT JOIN nypd_arrest_historic ON st_contains(block_nyc.geometry, nypd_arrest_historic.geometry)
+                                       GROUP BY block_nyc.geoid;")
+```
+
+#### Joining tabular response to a geometry
+```R
+#Shooting
+shooting_block <- left_join(shooting_block, st_read(conn,layer = "block_nyc"), by="geoid")|> st_as_sf()
+#Arrest
+arrests_block <- left_join(arrests_block, st_read(conn,layer = "block_nyc"), by="geoid")|> st_as_sf()
+```
+#### Ploting the results
+```
+#Ploting shootings
+ggplot()+
+  geom_sf(data=shooting_block,aes(fill=as.integer(count)),colour=NA)+
+  scale_fill_gradient(low = 'pink', high='red', na.value = 'yellow')+
+  labs(fill='Number of Shootings', title='Number of Shootings')+
+  geom_sf(data = st_read(conn,layer = 'neighborhood_nyc'), fill=NA, linewidth = 0.5, color='green')+
+  geom_sf(data = st_read(conn,layer = 'borough_nyc'),fill=NA, linewidth = 1.3 ,color='gray')
+```
+
+```
+#Ploting arrests
+ggplot()+
+  geom_sf(data=arrests_block,aes(fill=as.integer(count)),colour=NA)+
+  scale_fill_gradient(low = 'pink', high='red', na.value = 'yellow')+
+  labs(fill='Number of Arrests' , title='Number of Arrest')+
+  geom_sf(data = st_read(conn,layer = 'neighborhood_nyc'), fill=NA, linewidth = 0.5, color='green')+
+  geom_sf(data = st_read(conn,layer = 'borough_nyc'),fill=NA, linewidth = 1.3 ,color='gray')
+  
 ```
