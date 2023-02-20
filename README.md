@@ -174,3 +174,8 @@ ggplot()+
   geom_sf(data = st_read(conn,layer = 'borough_nyc'),fill=NA, linewidth = 1.3 ,color='gray')
   
 ```
+
+
+ ![Alt text](/img/num_shootings.png) ![Alt text](/img/num_arrests.png) 
+
+
