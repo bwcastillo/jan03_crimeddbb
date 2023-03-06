@@ -193,6 +193,21 @@ arrests_block <- st_read(conn,query="SELECT block_nyc.geoid, count(nypd_arrest_h
                                        LEFT JOIN nypd_arrest_historic ON st_contains(block_nyc.geometry, nypd_arrest_historic.geometry)
                                        GROUP BY block_nyc.geoid;")
 
+
+# Seeing descriptive statistics for the variable of interest --------------
+
+shooting_block$count <- as.integer(shooting_block$count)
+freq_shoot <- table(shooting_block$count)|>as.data.frame()
+table(shooting_block$count)|>as.data.frame()|>ggplot()+geom_col(aes(x=Var1,y=Freq))
+shooting_block[shooting_block$count>0,] |> ggplot()+geom_histogram(aes(x=count))
+shooting_block$count[shooting_block$count>0] |> hist()
+shooting_block$count[shooting_block$count>0]|>mean()
+shooting_block$count[shooting_block$count>0]|>sd()
+
+#Finding the distribution of the dependent variable
+library(fitdistrplus)
+descdist(shooting_block$count[shooting_block$count>0], discrete = T)
+
 #Joining with geometry
 #Shooting
 shooting_block <- left_join(shooting_block, st_read(conn,layer = "block_nyc"), by="geoid")|> st_as_sf()
@@ -215,17 +230,28 @@ ggplot()+
   labs(fill='Number of Arrests' , title='Number of Arrest')+
   geom_sf(data = st_read(conn,layer = 'neighborhood_nyc'), fill=NA, linewidth = 0.5, color='green')+
   geom_sf(data = st_read(conn,layer = 'borough_nyc'),fill=NA, linewidth = 1.3 ,color='gray')
+
+
+# Creating interactive maps -----------------------------------------------
+
+library(leaflet)
+
+
+#colpal <- colorNumeric(palette = "inferno", domain=shooting_block$count, n=10)
+
+leaflet() %>% 
+  addTiles() %>%
+  addPolygons(data=shooting_block,popup=shooting_block$count,group = "barrios") %>% 
+  addPolygons(data=st_read(conn,layer = 'borough_nyc'),
+              popup = st_read(conn,layer = 'borough_nyc')$boroname,
+              stroke = T,
+              weight = 0.5)
   
+
   
-st_read(conn,layer = 'neighborhood_nyc')
+  addLayersControl(overlayGroups =   c("barrios"))
 
-st_as_sf(as.data.frame(test), 'the_geom')
-st_geometry(test,'the_geom')
-
-#Ploting shootings
-
-terrain.colors(1)
-
+  
 #Shootings by borough
 
 #Race victim killed
