@@ -193,6 +193,12 @@ arrests_block <- st_read(conn,query="SELECT block_nyc.geoid, count(nypd_arrest_h
                                        LEFT JOIN nypd_arrest_historic ON st_contains(block_nyc.geometry, nypd_arrest_historic.geometry)
                                        GROUP BY block_nyc.geoid;")
 
+#Joining with geometry ----------------------------------------------------
+#Shooting
+shooting_block <- left_join(shooting_block, st_read(conn,layer = "block_nyc"), by="geoid")|> st_as_sf()
+#Arrest
+arrests_block <- left_join(arrests_block, st_read(conn,layer = "block_nyc"), by="geoid")|> st_as_sf()
+
 
 # Seeing descriptive statistics for the variable of interest --------------
 
@@ -207,12 +213,20 @@ shooting_block$count[shooting_block$count>0]|>sd()
 #Finding the distribution of the dependent variable
 library(fitdistrplus)
 descdist(shooting_block$count[shooting_block$count>0], discrete = T)
+descdist(shooting_block$count, discrete = T)
+fitdist(shooting_block$count[shooting_block>0],"Poisson")
 
-#Joining with geometry
-#Shooting
-shooting_block <- left_join(shooting_block, st_read(conn,layer = "block_nyc"), by="geoid")|> st_as_sf()
-#Arrest
-arrests_block <- left_join(arrests_block, st_read(conn,layer = "block_nyc"), by="geoid")|> st_as_sf()
+
+# Classification ----------------------------------------------------------
+library(rgeoda)
+natural_breaks(5, shooting_block[shooting_block$count>0,]['count'])
+
+shooting_block$class <- case_when(shooting_block$count==0 ~ "No shooting",
+                                  shooting_block$count>=1 & shooting_block$count<=4 ~ "1-4",
+                                  shooting_block$count>4 & shooting_block$count<=9 ~ ">4-9",
+                                  shooting_block$count>9 & shooting_block$count<=18 ~ ">9-18",
+                                  shooting_block$count>18 & shooting_block$count<=37 ~ ">18-37",
+                                  shooting_block$count>37 ~ ">37")
 
 
 #Ploting shootings
@@ -236,22 +250,38 @@ ggplot()+
 
 library(leaflet)
 
+colpal <- 
+  colorFactor(palette ="viridis", 
+              domain=shooting_block$class, 
+              levels = factor(shooting_block$class,
+                              labels = c('>37','>18-37', '>9-18','>4-9', '1-4','No shooting'),
+                              levels = c('>37','>18-37', '>9-18','>4-9', '1-4','No shooting')),
+              ordered = F)
 
-#colpal <- colorNumeric(palette = "inferno", domain=shooting_block$count, n=10)
+
+#head(st_read(conn, 'neighborhood_nyc'))
 
 leaflet() %>% 
   addTiles() %>%
-  addPolygons(data=shooting_block,popup=shooting_block$count,group = "barrios") %>% 
-  addPolygons(data=st_read(conn,layer = 'borough_nyc'),
-              popup = st_read(conn,layer = 'borough_nyc')$boroname,
+  addPolygons(data=shooting_block,
+              popup=shooting_block$class,
+              group = "barrios",
+              color = ~colpal(class),
               stroke = T,
-              weight = 0.5)
+              weight = 0.5) %>% 
+  addPolygons(data= st_read(dsn=conn,layer="neighborhood_nyc"),
+              label =  st_read(dsn=conn,layer="neighborhood_nyc")$ntaname,
+              dashArray = 1,
+              color = 'white',
+              fillColor = F,
+              weight = 2,
+              group = 'neighbor') %>% 
+  addLegend(values=shooting_block$class, pal=colpal) %>% 
+  addLayersControl(overlayGroups  = 'neighbor')
   
 
   
-  addLayersControl(overlayGroups =   c("barrios"))
 
-  
 #Shootings by borough
 
 #Race victim killed
