@@ -206,15 +206,20 @@ shooting_block$count <- as.integer(shooting_block$count)
 freq_shoot <- table(shooting_block$count)|>as.data.frame()
 table(shooting_block$count)|>as.data.frame()|>ggplot()+geom_col(aes(x=Var1,y=Freq))
 shooting_block[shooting_block$count>0,] |> ggplot()+geom_histogram(aes(x=count))
-shooting_block$count[shooting_block$count>0] |> hist()
+shooting_block$count[shooting_block$count>0&shooting_block$count<30] |> hist()
 shooting_block$count[shooting_block$count>0]|>mean()
 shooting_block$count[shooting_block$count>0]|>sd()
 
 #Finding the distribution of the dependent variable
 library(fitdistrplus)
-descdist(shooting_block$count[shooting_block$count>0], discrete = T)
 descdist(shooting_block$count, discrete = T)
-fitdist(shooting_block$count[shooting_block>0],"Poisson")
+descdist(shooting_block$count[shooting_block$count>0&shooting_block$count<15], discrete = T)#Very ideal case
+descdist(shooting_block$count[shooting_block$count>0&shooting_block$count<30], discrete = T)
+
+options(scipen = F)
+
+
+
 
 
 # Classification ----------------------------------------------------------
