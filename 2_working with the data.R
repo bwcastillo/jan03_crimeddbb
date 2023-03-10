@@ -265,31 +265,76 @@ colpal <-
 
 
 #head(st_read(conn, 'neighborhood_nyc'))
+library(rmapshaper)
 
-leaflet() %>% 
-  addTiles() %>%
-  addPolygons(data=shooting_block,
-              popup=shooting_block$class,
-              group = "barrios",
-              color = ~colpal(class),
-              stroke = T,
-              weight = 0.5) %>% 
-  addPolygons(data= st_read(dsn=conn,layer="neighborhood_nyc"),
-              label =  st_read(dsn=conn,layer="neighborhood_nyc")$ntaname,
-              dashArray = 1,
-              color = 'white',
-              fillColor = F,
-              weight = 2,
-              group = 'neighbor') %>% 
-  addLegend(values=shooting_block$class, pal=colpal) %>% 
-  addLayersControl(overlayGroups  = 'neighbor')
+map_shooting<-leaflet() %>% 
+              addTiles() %>%
+              addPolygons(data=rmapshaper::ms_simplify(shooting_block, 0.8),
+                          popup=shooting_block$class,
+                          group = "barrios",
+                          color = ~colpal(class),
+                          stroke = T,
+                          weight = 0.5) %>% 
+              addPolygons(data= st_read(dsn=conn,layer="neighborhood_nyc"),
+                          label =  st_read(dsn=conn,layer="neighborhood_nyc")$ntaname,
+                          dashArray = 1,
+                          color = 'white',
+                          fillColor = F,
+                          weight = 2,
+                          group = 'neighbor') %>% 
+              addLegend(values=shooting_block$class, pal=colpal) %>% 
+              addLayersControl(overlayGroups  = 'neighbor')
+          
+library(htmlwidgets)
+saveWidget(map_shooting, file="output/map_shooting.html")
   
+#Nominal classifications
+#Vic_race
+#vic_sex
+#precinct
+#vic_age_group
+#boro
+#occur_date
+#occur_time
+#Statistical murder flag
 
-  
+#Querying spatial and non-spatial
 
-#Shootings by borough
 
-#Race victim killed
+# Non Spatial -------------------------------------------------------------
+st_read(conn,query="SELECT nypd_shooting_historic.vic_race, count(*)
+                     FROM nypd_shooting_historic
+                     GROUP BY vic_race
+                     ORDER BY count(*) desc;")
+
+st_read(conn,query="SELECT nypd_shooting_historic.vic_sex, count(*)
+                     FROM nypd_shooting_historic
+                     GROUP BY vic_sex
+                     ORDER BY count(*) desc;")
+
+st_read(conn,query="SELECT nypd_shooting_historic.precinct, count(*)
+                     FROM nypd_shooting_historic
+                     GROUP BY precinct
+                     ORDER BY count(*) desc;")
+
+st_read(conn,query="SELECT nypd_shooting_historic.occur_time, count(*)
+                     FROM nypd_shooting_historic
+                     GROUP BY occur_time
+                     ORDER BY count(*) desc;")
+
+st_read(conn,query='ALTER TABLE nypd_shooting_historic
+                    ALTER COLUMN occur_time TYPE time
+                    USING occur_time::time without time zone
+        ')
+
+
+
+
+# Spatial -----------------------------------------------------------------
+
+
+
+
 
 #Exploring Heterogeneity, Dependence, Sparsity, Uncertainty 
 #Heterogeneity: https://www.crimrxiv.com/pub/44brr2tx/release/1
