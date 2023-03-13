@@ -78,7 +78,7 @@ st_write(st_read("https://data.cityofnewyork.us/api/geospatial/9nt8-h7nd?accessT
 #https://data.cityofnewyork.us/api/geospatial/eizi-ujye?method=export&format=GeoJSON
 
 
-#Querying intersects as table
+#Querying intersects as table ------------------------------------------------------
 test <- dbSendQuery(conn,"SELECT ST_Intersects(nypd_shooting_historic.geometry, borough_nyc.geometry)
             FROM nypd_shooting_historic, borough_nyc;")
 
@@ -173,7 +173,7 @@ test <- table(test)|>as.data.frame() #Funny
 
 sum(test$Freq)
 
-# Densities ---------------------------------------------------------------
+# Densities of shooting and arrest by block -------------------------------
 
 #First method: very slow
 #Count people in each borough
@@ -193,8 +193,8 @@ arrests_block <- st_read(conn,query="SELECT block_nyc.geoid, count(nypd_arrest_h
                                        LEFT JOIN nypd_arrest_historic ON st_contains(block_nyc.geometry, nypd_arrest_historic.geometry)
                                        GROUP BY block_nyc.geoid;")
 
-#Joining with geometry ----------------------------------------------------
-#Shooting
+# Joining with geometry ----------------------------------------------------
+# Shooting
 shooting_block <- left_join(shooting_block, st_read(conn,layer = "block_nyc"), by="geoid")|> st_as_sf()
 #Arrest
 arrests_block <- left_join(arrests_block, st_read(conn,layer = "block_nyc"), by="geoid")|> st_as_sf()
@@ -222,7 +222,7 @@ options(scipen = F)
 
 
 
-# Classification ----------------------------------------------------------
+# Classification shooting -----------------------------------
 library(rgeoda)
 natural_breaks(5, shooting_block[shooting_block$count>0,]['count'])
 
@@ -234,7 +234,7 @@ shooting_block$class <- case_when(shooting_block$count==0 ~ "No shooting",
                                   shooting_block$count>37 ~ ">37")
 
 
-#Ploting shootings
+# Ploting shootings --------------------------------------------------------
 ggplot()+
   geom_sf(data=shooting_block,aes(fill=as.integer(count)),colour=NA)+
   scale_fill_gradient(low = 'pink', high='red', na.value = 'yellow')+
@@ -242,14 +242,13 @@ ggplot()+
   geom_sf(data = st_read(conn,layer = 'neighborhood_nyc'), fill=NA, linewidth = 0.5, color='green')+
   geom_sf(data = st_read(conn,layer = 'borough_nyc'),fill=NA, linewidth = 1.3 ,color='gray')
 
-#Ploting arrests
+# Ploting arrests --------------------------------------------------------
 ggplot()+
   geom_sf(data=arrests_block,aes(fill=as.integer(count)),colour=NA)+
   scale_fill_gradient(low = 'pink', high='red', na.value = 'yellow')+
   labs(fill='Number of Arrests' , title='Number of Arrest')+
   geom_sf(data = st_read(conn,layer = 'neighborhood_nyc'), fill=NA, linewidth = 0.5, color='green')+
   geom_sf(data = st_read(conn,layer = 'borough_nyc'),fill=NA, linewidth = 1.3 ,color='gray')
-
 
 # Creating interactive maps -----------------------------------------------
 
@@ -298,10 +297,8 @@ saveWidget(map_shooting, file="output/map_shooting.html")
 #occur_time
 #Statistical murder flag
 
-#Querying spatial and non-spatial
-
-
-# Non Spatial -------------------------------------------------------------
+# Querying spatial and non-spatial ------------------------
+# Non Spatial counts of categories ------------------------
 st_read(conn,query="SELECT nypd_shooting_historic.vic_race, count(*)
                      FROM nypd_shooting_historic
                      GROUP BY vic_race
@@ -324,11 +321,25 @@ st_read(conn,query="SELECT nypd_shooting_historic.occur_time, count(*)
 
 st_read(conn,query='ALTER TABLE nypd_shooting_historic
                     ALTER COLUMN occur_time TYPE time
-                    USING occur_time::time without time zone
-        ')
+                    USING occur_time::time without time zone')
 
 
 
+dbListTables(conn)
+
+st_read(conn,query="SELECT column_name 
+                    FROM information_schema.columns
+                    WHERE table_name = 'block_nyc'")
+
+st_read(conn,query='SELECT block')
+
+
+library(tigris)
+#https://rconsortium.github.io/censusguide/
+blocknyc <- blocks(state="NY",year=2020)
+ggplot(blocknyc)+
+  geom_sf()
+rm(blocknyc)
 
 # Spatial -----------------------------------------------------------------
 
