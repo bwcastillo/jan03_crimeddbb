@@ -52,10 +52,21 @@ ggplot(shootings[!is.na(shootings$perp_race),], aes(color=perp_race))+
 #Census Track: https://data.cityofnewyork.us/City-Government/2020-Census-Tracts-Tabular/63ge-mke6
 st_write(st_read("https://data.cityofnewyork.us/api/geospatial/63ge-mke6?accessType=DOWNLOAD&method=export&format=GeoJSON"),dsn = conn, 'ct_nyc')
 
-#Census block: https://data.cityofnewyork.us/City-Government/2020-Census-Tracts-Tabular/63ge-mke6
+#Census Block: https://data.cityofnewyork.us/City-Government/2020-Census-Blocks-Tabular/wmsu-5muw
 st_write(st_read("https://data.cityofnewyork.us/api/geospatial/wmsu-5muw?accessType=DOWNLOAD&method=export&format=GeoJSON"),dsn = conn, 'block_nyc')
 
 
+
+# Census population -------------------------------------------------------
+
+
+library(tigris)
+#https://rconsortium.github.io/censusguide/
+blocknyc <- blocks(state="NY",year=2020)
+blocknyc|>sf::st_read("output/block_nyc.shp")
+ggplot(blocknyc)+
+  geom_sf()
+rm(blocknyc)
 
 # Unique scales -----------------------------------------------------------
 
@@ -202,6 +213,10 @@ arrests_block <- left_join(arrests_block, st_read(conn,layer = "block_nyc"), by=
 
 # Seeing descriptive statistics for the variable of interest --------------
 
+# Creating Poisson model --------------------------------------------------
+
+
+
 shooting_block$count <- as.integer(shooting_block$count)
 freq_shoot <- table(shooting_block$count)|>as.data.frame()
 table(shooting_block$count)|>as.data.frame()|>ggplot()+geom_col(aes(x=Var1,y=Freq))
@@ -210,13 +225,16 @@ shooting_block$count[shooting_block$count>0&shooting_block$count<30] |> hist()
 shooting_block$count[shooting_block$count>0]|>mean()
 shooting_block$count[shooting_block$count>0]|>sd()
 
-#Finding the distribution of the dependent variable
+#Finding the distribution of the dependent variable -----------------------
 library(fitdistrplus)
 descdist(shooting_block$count, discrete = T)
 descdist(shooting_block$count[shooting_block$count>0&shooting_block$count<15], discrete = T)#Very ideal case
 descdist(shooting_block$count[shooting_block$count>0&shooting_block$count<30], discrete = T)
 
 options(scipen = F)
+
+
+# Calculating Expsoure and Offset -----------------------------------------
 
 
 
@@ -331,15 +349,10 @@ st_read(conn,query="SELECT column_name
                     FROM information_schema.columns
                     WHERE table_name = 'block_nyc'")
 
-st_read(conn,query='SELECT block')
+st_read(conn,query='SELECT COUNT(*) FROM block_nyc ')
 
 
-library(tigris)
-#https://rconsortium.github.io/censusguide/
-blocknyc <- blocks(state="NY",year=2020)
-ggplot(blocknyc)+
-  geom_sf()
-rm(blocknyc)
+
 
 # Spatial -----------------------------------------------------------------
 
