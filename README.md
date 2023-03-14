@@ -2,10 +2,9 @@
 This repository is building R code to explore the NYC criminal data through diferent Spatial Methods. 
 
 
-## 1.Getting data
+## A. Establishing connection with PostgresSQL
 
-#### Establishing connection with PostgresSQL
-
+### Postgres parameters through R
 ```R
 #Working with the data --------------------------------------------------------
 library(RPostgreSQL)
@@ -58,9 +57,7 @@ dbSendQuery(conn,"ALTER EXTENSION postgis
             UPDATE TO \"3.1.0\";")
 ```
 
-### Getting and loading data
-
-
+## B. Getting and loading data to PostgreSQL
 ```mermaid
 flowchart 
 NYC((NYC))
@@ -83,7 +80,7 @@ Events --- Shootings
 Events --- Arrests
 ```
 
-### Events
+### 1. Events
 
 #### Loading manually Arrest Events (big database >5M events)
 
@@ -101,7 +98,7 @@ sf::st_write(geojsonio::geojson_sf("https://data.cityofnewyork.us/resource/833y-
 ```
 
 
-### Boundaries
+### 2. Boundaries
 
 #### Administrative divisions
 
@@ -109,7 +106,7 @@ sf::st_write(geojsonio::geojson_sf("https://data.cityofnewyork.us/resource/833y-
 #Census Track: https://data.cityofnewyork.us/City-Government/2020-Census-Tracts-Tabular/63ge-mke6
 st_write(st_read("https://data.cityofnewyork.us/api/geospatial/63ge-mke6?accessType=DOWNLOAD&method=export&format=GeoJSON"),dsn = conn, 'ct_nyc')
 
-#Census block: https://data.cityofnewyork.us/City-Government/2020-Census-Tracts-Tabular/63ge-mke6
+#Census block: https://data.cityofnewyork.us/City-Government/2020-Census-Blocks-Tabular/wmsu-5muw
 st_write(st_read("https://data.cityofnewyork.us/api/geospatial/wmsu-5muw?accessType=DOWNLOAD&method=export&format=GeoJSON"),dsn = conn, 'block_nyc')
 ```
 #### Unique division
@@ -125,12 +122,29 @@ st_write(st_read("https://data.cityofnewyork.us/api/geospatial/xn3r-zk6y?accessT
 st_write(st_read("https://data.cityofnewyork.us/api/geospatial/9nt8-h7nd?accessType=DOWNLOAD&method=export&format=GeoJSON"),dsn = conn, 'neighborhood_nyc')
 
 ```
+### 3. Census information 
+*[The U.S. Census Bureau conducts more than 130 surveys and programs each year, including our nation's largest](https://www.census.gov/programs-surveys/surveys-programs.html)*
+
+
+
+```mermaid
+flowchart 
+BUREAU((Census Bureau))
+ACS[American Community Survey]
+DECENIAL[Decennial Census of \n Population and Housing]
+OTHERS[More than 130 surveys and programs]
+BUREAU --- ACS
+BUREAU --- DECENIAL
+BUREAU --- OTHERS
+```
+
+## C. Exploratory Analysis
 
 ### Density
 
 [Intensity and Density](https://paezha.github.io/spatial-analysis-r/point-pattern-analysis-i.html#intensity-and-density)
 
-$$\lambda=\frac{number of event}{unit area} $$
+$$\lambda=\frac{\text{number of event}}{\text{unit area}} $$
 
 ```R
 #Querying shootings
