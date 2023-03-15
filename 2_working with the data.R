@@ -62,11 +62,27 @@ st_write(st_read("https://data.cityofnewyork.us/api/geospatial/wmsu-5muw?accessT
 
 library(tigris)
 #https://rconsortium.github.io/censusguide/
-blocknyc <- blocks(state="NY",year=2020)
-blocknyc|>sf::st_read("output/block_nyc.shp")
+st_write(st_read(blocks(state="NY",year=2020)),dsn=conn, layer='block_ny_state')
+
 ggplot(blocknyc)+
   geom_sf()
 rm(blocknyc)
+
+# Joining NY state block Census data with NYC block Geom ------------------
+#Knowing the GEOID attribute name of both
+st_read(conn,query="SELECT column_name 
+                    FROM information_schema.columns
+                    WHERE table_name = 'block_nyc'")
+
+dbSendQuery(conn,"SELECT * 
+                  FROM block_nyc block_nyc
+                  LEFT JOIN block_ny_state block_ny_state
+                  ON block_nyc. = block_ny_state.id")
+
+dbSendQuery(conn,"SELECT * 
+                  FROM  block_nyc
+                  LEFT JOIN  block_ny_state
+                  ON block_nyc. = block_ny_state.id")
 
 # Unique scales -----------------------------------------------------------
 
@@ -364,4 +380,22 @@ st_read(conn,query='SELECT COUNT(*) FROM block_nyc ')
 #Heterogeneity: https://www.crimrxiv.com/pub/44brr2tx/release/1
 #https://postgis.net/workshops/postgis-intro/
 
+
+
+
+
+
+# Bibliography to read ----------------------------------------------------
+#https://scholar.google.com/citations?user=k1zG5D0AAAAJ&hl=en
+#https://onlinelibrary.wiley.com/doi/full/10.1111/1556-4029.15132
+#https://www.sciencedirect.com/science/article/pii/S0047235222000496
+#https://onlinelibrary.wiley.com/doi/abs/10.1111/1745-9133.12608
+#https://onlinelibrary.wiley.com/doi/full/10.1111/1556-4029.15132
+#https://www.ncbi.nlm.nih.gov/pmc/articles/PMC9642971/
+#https://journals.sagepub.com/doi/abs/10.1177/002242788001700107?journalCode=jrca
+#https://link.springer.com/article/10.1007/s10940-020-09490-6
+#https://onlinelibrary.wiley.com/doi/full/10.1002/cl2.1046
+# Arrests
+#https://academic.oup.com/bjc/article-abstract/59/4/958/5373005
+#https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0157223
 
