@@ -62,8 +62,9 @@ st_write(st_read("https://data.cityofnewyork.us/api/geospatial/wmsu-5muw?accessT
 
 library(tigris)
 #https://rconsortium.github.io/censusguide/
-st_write(st_read(blocks(state="NY",year=2020)),dsn=conn, layer='block_ny_state')
-
+block_ny_state<- blocks(state="NY",year=2020)
+st_write(block_ny_state,dsn=conn, layer='block_ny_state')
+rm(block_ny_state)
 ggplot(blocknyc)+
   geom_sf()
 rm(blocknyc)
@@ -74,16 +75,38 @@ st_read(conn,query="SELECT column_name
                     FROM information_schema.columns
                     WHERE table_name = 'block_nyc'")
 
-dbSendQuery(conn,"SELECT * 
-                  FROM block_nyc block_nyc
-                  LEFT JOIN block_ny_state block_ny_state
-                  ON block_nyc. = block_ny_state.id")
+st_read(conn,query="SELECT column_name 
+                    FROM information_schema.columns
+                    WHERE table_name = 'block_ny_state'")
 
-dbSendQuery(conn,"SELECT * 
-                  FROM  block_nyc
-                  LEFT JOIN  block_ny_state
-                  ON block_nyc. = block_ny_state.id")
+query <- 'SELECT * 
+          FROM block_nyc block_nyc
+          LEFT JOIN block_ny_state block_ny_state
+          ON block_nyc.geoid = block_ny_state."GEOID20";'
 
+
+result <- dbGetQuery(conn, query) #Execute on Postgresql and I got the on fly table here
+#result <- dbSendQuery(conn, query) it doesn't work because it creates an on fly table that is not possible see from R
+
+
+#It results CREATE A NEW TABLE
+dbSendQuery(conn, 'CREATE TABLE population_nyc AS
+                   SELECT block_nyc.*, 
+                          block_ny_state."GEOID20", 
+                          block_ny_state."POP20",
+                          block_ny_state."HOUSING20"
+                   FROM block_nyc block_nyc
+                   LEFT JOIN block_ny_state block_ny_state
+                   ON block_nyc.geoid = block_ny_state."GEOID20";')
+
+
+library(dplyr)
+dbSendQuery(conn, paste("CREATE TABLE population_nyc AS",query))
+
+
+
+
+result <- dbGetQuery(conn,query)
 # Unique scales -----------------------------------------------------------
 
 #Loading borough at PostGIS
