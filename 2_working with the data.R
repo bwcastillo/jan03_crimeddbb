@@ -65,9 +65,26 @@ library(tigris)
 block_ny_state<- blocks(state="NY",year=2020)
 st_write(block_ny_state,dsn=conn, layer='block_ny_state')
 rm(block_ny_state)
+
+
 ggplot(blocknyc)+
   geom_sf()
 rm(blocknyc)
+
+#Block-groups 
+groupblock_ny_state<- block_groups(state="NY",year=2020)
+st_write(groupblock_ny_state,dsn=conn, layer='groupblock_ny_state')
+rm(groupblock_ny_state)
+
+st_read(conn, query="SELECT Find_SRID('censos', 'groupblock_ny_state', 'geometry');")
+st_read(conn, query="SELECT EXISTS(SELECT * FROM information_schema.views WHERE table_name = 'geometry_columns');")
+st_read(conn, query="SELECT EXISTS (
+    SELECT 1 
+    FROM information_schema.tables 
+    WHERE table_name = 'geometry_columns' 
+    AND table_schema = 'censos'
+);")
+
 
 # Joining NY state block Census data with NYC block Geom ------------------
 #Knowing the GEOID attribute name of both
@@ -78,6 +95,10 @@ st_read(conn,query="SELECT column_name
 st_read(conn,query="SELECT column_name 
                     FROM information_schema.columns
                     WHERE table_name = 'block_ny_state'")
+
+st_read(conn,query="SELECT column_name 
+                    FROM information_schema.columns
+                    WHERE table_name = 'groupblock_ny_state'")
 
 query <- 'SELECT * 
           FROM block_nyc block_nyc
@@ -94,19 +115,13 @@ dbSendQuery(conn, 'CREATE TABLE population_nyc AS
                    SELECT block_nyc.*, 
                           block_ny_state."GEOID20", 
                           block_ny_state."POP20",
-                          block_ny_state."HOUSING20"
+                          block_ny_state."HOUSING20",
+                          block_ny_state."NAME20"
                    FROM block_nyc block_nyc
                    LEFT JOIN block_ny_state block_ny_state
                    ON block_nyc.geoid = block_ny_state."GEOID20";')
 
 
-library(dplyr)
-dbSendQuery(conn, paste("CREATE TABLE population_nyc AS",query))
-
-
-
-
-result <- dbGetQuery(conn,query)
 # Unique scales -----------------------------------------------------------
 
 #Loading borough at PostGIS
@@ -232,10 +247,21 @@ sum(test$Freq)
 
 #Second method
 #Querying shootings
-shooting_block <- st_read(conn,query="SELECT block_nyc.geoid, count(nypd_shooting_historic.geometry)
-                                       FROM block_nyc
-                                       LEFT JOIN nypd_shooting_historic ON st_contains(block_nyc.geometry, nypd_shooting_historic.geometry)
-                                       GROUP BY block_nyc.geoid;")
+shooting_block <- st_read(conn,query="SELECT population_nyc.geoid, count(nypd_shooting_historic.geometry)
+                                       FROM population_nyc
+                                       LEFT JOIN nypd_shooting_historic ON st_contains(population_nyc.geometry, nypd_shooting_historic.geometry)
+                                       GROUP BY population_nyc.geoid;")
+
+#Querying shootings
+shooting_block <- st_read(conn,query='SELECT groupblock_ny_state."GEOID", count(nypd_shooting_historic.geometry)
+                                       FROM groupblock_ny_state
+                                       LEFT JOIN nypd_shooting_historic ON st_contains(groupblock_ny_state.geometry, nypd_shooting_historic.geometry)
+                                       GROUP BY groupblock_ny_state."GEOID";')
+
+population_nyc <- st_read(conn, query="SELECT * FROM population_nyc;")
+
+shooting_block <-left_join(population_nyc, shooting_block, by=c('GEOID20'='geoid'))
+
 
 #Querying arrest
 arrests_block <- st_read(conn,query="SELECT block_nyc.geoid, count(nypd_arrest_historic.geometry)
@@ -257,6 +283,9 @@ arrests_block <- left_join(arrests_block, st_read(conn,layer = "block_nyc"), by=
 
 
 shooting_block$count <- as.integer(shooting_block$count)
+shooting_block$ratio <- shooting_block$count/shooting_block$POP20
+shooting_block$ratio |> hist()
+
 freq_shoot <- table(shooting_block$count)|>as.data.frame()
 table(shooting_block$count)|>as.data.frame()|>ggplot()+geom_col(aes(x=Var1,y=Freq))
 shooting_block[shooting_block$count>0,] |> ggplot()+geom_histogram(aes(x=count))
@@ -338,8 +367,12 @@ map_shooting<-leaflet() %>%
                           fillColor = F,
                           weight = 2,
                           group = 'neighbor') %>% 
+              addPolygons(data =shooting_block[shooting_block$GEOID20==360050221011001,],
+                          label=shooting_block$NAME20[shooting_block$GEOID20==360050221011001],
+                          color='green',
+                          group='testing') %>% 
               addLegend(values=shooting_block$class, pal=colpal) %>% 
-              addLayersControl(overlayGroups  = 'neighbor')
+              addLayersControl(overlayGroups  = c('neighbor','testing'))
           
 library(htmlwidgets)
 saveWidget(map_shooting, file="output/map_shooting.html")
