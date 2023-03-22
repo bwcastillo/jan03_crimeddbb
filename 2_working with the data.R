@@ -76,15 +76,22 @@ groupblock_ny_state<- block_groups(state="NY",year=2020)
 st_write(groupblock_ny_state,dsn=conn, layer='groupblock_ny_state')
 rm(groupblock_ny_state)
 
-st_read(conn, query="SELECT Find_SRID('censos', 'groupblock_ny_state', 'geometry');")
 st_read(conn, query="SELECT EXISTS(SELECT * FROM information_schema.views WHERE table_name = 'geometry_columns');")
 st_read(conn, query="SELECT EXISTS (
     SELECT 1 
     FROM information_schema.tables 
-    WHERE table_name = 'geometry_columns' 
+    WHERE table_name = 'groupblock_ny_state' 
     AND table_schema = 'censos'
 );")
 
+
+st_read(conn, query="SELECT Find_SRID('censos', 'groupblock_ny_state', 'geometry');") #It says 0 but is 4269
+
+
+# Changing coordinates ----------------------------------------------------
+
+
+st_read(conn, query='ALTER TABLE groupblock_ny_state ALTER COLUMN geometry TYPE geometry(MultiPolygon, 4326) USING ST_Transform(ST_SetSRID(geometry, 4269), 4326);')
 
 # Joining NY state block Census data with NYC block Geom ------------------
 #Knowing the GEOID attribute name of both
@@ -252,8 +259,8 @@ shooting_block <- st_read(conn,query="SELECT population_nyc.geoid, count(nypd_sh
                                        LEFT JOIN nypd_shooting_historic ON st_contains(population_nyc.geometry, nypd_shooting_historic.geometry)
                                        GROUP BY population_nyc.geoid;")
 
-#Querying shootings
-shooting_block <- st_read(conn,query='SELECT groupblock_ny_state."GEOID", count(nypd_shooting_historic.geometry)
+#Querying shootings Group blocks
+shooting_groupblock <- st_read(conn,query='SELECT groupblock_ny_state."GEOID", count(nypd_shooting_historic.geometry)
                                        FROM groupblock_ny_state
                                        LEFT JOIN nypd_shooting_historic ON st_contains(groupblock_ny_state.geometry, nypd_shooting_historic.geometry)
                                        GROUP BY groupblock_ny_state."GEOID";')
@@ -261,6 +268,8 @@ shooting_block <- st_read(conn,query='SELECT groupblock_ny_state."GEOID", count(
 population_nyc <- st_read(conn, query="SELECT * FROM population_nyc;")
 
 shooting_block <-left_join(population_nyc, shooting_block, by=c('GEOID20'='geoid'))
+
+shooting_groupblock <-left_join(population_nyc, shooting_groupblock, by=c('GEOID20'='GEOID'))
 
 
 #Querying arrest
@@ -276,12 +285,10 @@ shooting_block <- left_join(shooting_block, st_read(conn,layer = "block_nyc"), b
 arrests_block <- left_join(arrests_block, st_read(conn,layer = "block_nyc"), by="geoid")|> st_as_sf()
 
 
+
 # Seeing descriptive statistics for the variable of interest --------------
 
-# Creating Poisson model --------------------------------------------------
-
-
-
+# Blocks: Creating Poisson model --------------------------------------------------
 shooting_block$count <- as.integer(shooting_block$count)
 shooting_block$ratio <- shooting_block$count/shooting_block$POP20
 shooting_block$ratio |> hist()
@@ -293,7 +300,15 @@ shooting_block$count[shooting_block$count>0&shooting_block$count<30] |> hist()
 shooting_block$count[shooting_block$count>0]|>mean()
 shooting_block$count[shooting_block$count>0]|>sd()
 
-#Finding the distribution of the dependent variable -----------------------
+# Group block: Creating Poisson model --------------------------------------------------
+shooting_block$count <- as.integer(shooting_groupblock$count)
+shooting_block$ratio <- shooting_block$count/shooting_block$POP20
+shooting_block$ratio |> hist()
+
+
+
+
+# Blocks: Finding the distribution of the dependent variable -----------------------
 library(fitdistrplus)
 descdist(shooting_block$count, discrete = T)
 descdist(shooting_block$count[shooting_block$count>0&shooting_block$count<15], discrete = T)#Very ideal case
@@ -376,6 +391,13 @@ map_shooting<-leaflet() %>%
           
 library(htmlwidgets)
 saveWidget(map_shooting, file="output/map_shooting.html")
+
+
+# Map shooting groupblock -------------------------------------------------
+
+
+
+
   
 #Nominal classifications
 #Vic_race
