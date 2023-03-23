@@ -71,7 +71,7 @@ ggplot(blocknyc)+
   geom_sf()
 rm(blocknyc)
 
-#Block-groups 
+#Groups blocks
 groupblock_ny_state<- block_groups(state="NY",year=2020)
 st_write(groupblock_ny_state,dsn=conn, layer='groupblock_ny_state')
 rm(groupblock_ny_state)
@@ -89,12 +89,11 @@ st_read(conn, query="SELECT Find_SRID('censos', 'groupblock_ny_state', 'geometry
 
 
 # Changing coordinates ----------------------------------------------------
-
-
 st_read(conn, query='ALTER TABLE groupblock_ny_state ALTER COLUMN geometry TYPE geometry(MultiPolygon, 4326) USING ST_Transform(ST_SetSRID(geometry, 4269), 4326);')
 
 # Joining NY state block Census data with NYC block Geom ------------------
 #Knowing the GEOID attribute name of both
+
 st_read(conn,query="SELECT column_name 
                     FROM information_schema.columns
                     WHERE table_name = 'block_nyc'")
@@ -236,7 +235,7 @@ rm(test)
 
 
 test <- st_read(conn,query="SELECT ST_Contains(nypd_shooting_historic.geometry, borough_nyc.geometry)
-                FROM nypd_shooting_historic, borough_nyc;")
+                            FROM nypd_shooting_historic, borough_nyc;")
 
 test <- st_read(conn,query="SELECT  boro_name, statistical_murder_flag, vic_race FROM borough_nyc, nypd_shooting_historic
                             WHERE ST_Contains(borough_nyc.geometry,nypd_shooting_historic.geometry);")
@@ -269,7 +268,8 @@ population_nyc <- st_read(conn, query="SELECT * FROM population_nyc;")
 
 shooting_block <-left_join(population_nyc, shooting_block, by=c('GEOID20'='geoid'))
 
-shooting_groupblock <-left_join(population_nyc, shooting_groupblock, by=c('GEOID20'='GEOID'))
+population_group_nyc <- st_read(conn, query="SELECT * FROM groupblock_ny_state")
+shooting_groupblock <-left_join(population_group_nyc, shooting_groupblock, by=c('GEOID'))
 
 
 #Querying arrest
@@ -280,17 +280,29 @@ arrests_block <- st_read(conn,query="SELECT block_nyc.geoid, count(nypd_arrest_h
 
 # Joining with geometry ----------------------------------------------------
 # Shooting
-shooting_block <- left_join(shooting_block, st_read(conn,layer = "block_nyc"), by="geoid")|> st_as_sf()
+#shooting_block <- left_join(shooting_block, st_read(conn,layer = "block_nyc"), by="geoid")|> st_as_sf()
 #Arrest
-arrests_block <- left_join(arrests_block, st_read(conn,layer = "block_nyc"), by="geoid")|> st_as_sf()
+#arrests_block <- left_join(arrests_block, st_read(conn,layer = "block_nyc"), by="geoid")|> st_as_sf()
 
 
 
 # Seeing descriptive statistics for the variable of interest --------------
 
+
+# Exploring frequency measures --------------------------------------------
+
+
+# Exploring central measures ----------------------------------------------
+
+
+
 # Blocks: Creating Poisson model --------------------------------------------------
-shooting_block$count <- as.integer(shooting_block$count)
+#shooting_block$count <- as.integer(shooting_block$count)
+shooting_block <- shooting_block[shooting_block$POP20>0,]
 shooting_block$ratio <- shooting_block$count/shooting_block$POP20
+
+shooting_block$ratio <- as.double(shooting_block$ratio)
+ggplot()+geom_histogram(data=shooting_block,aes(x=shooting_block$ratio),binwidth =0.00988)
 shooting_block$ratio |> hist()
 
 freq_shoot <- table(shooting_block$count)|>as.data.frame()
@@ -301,9 +313,7 @@ shooting_block$count[shooting_block$count>0]|>mean()
 shooting_block$count[shooting_block$count>0]|>sd()
 
 # Group block: Creating Poisson model --------------------------------------------------
-shooting_block$count <- as.integer(shooting_groupblock$count)
-shooting_block$ratio <- shooting_block$count/shooting_block$POP20
-shooting_block$ratio |> hist()
+
 
 
 
