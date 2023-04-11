@@ -140,6 +140,19 @@ BUREAU --- OTHERS
 
 ## C. Exploratory Analysis
 
+### No-Spatial
+#### Measures of Central Tedency
+##### Mode
+###### Time shooting
+###### Victims race 
+###### Victims group age
+###### Fatal victims
+###### Precicnts
+###### Boroughs
+###### Combinations
+
+### Spatial
+
 ### Density
 
 [Intensity and Density](https://paezha.github.io/spatial-analysis-r/point-pattern-analysis-i.html#intensity-and-density)
