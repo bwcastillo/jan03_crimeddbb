@@ -420,30 +420,66 @@ saveWidget(map_shooting, file="output/map_shooting.html")
 #Statistical murder flag
 
 # Querying spatial and non-spatial ------------------------
-# Non Spatial counts of categories ------------------------
-st_read(conn,query="SELECT nypd_shooting_historic.vic_race, count(*)
-                     FROM nypd_shooting_historic
-                     GROUP BY vic_race
-                     ORDER BY count(*) desc;")
+# Non Spatial counts of categories (MODES) ------------------------
+#Race victim
+mode_vicrace <- st_read(conn,query="SELECT nypd_shooting_historic.vic_race, count(*)
+                                     FROM nypd_shooting_historic
+                                     GROUP BY vic_race
+                                     ORDER BY count(*) desc;")
+#Sex victim
+mode_sexvic <- st_read(conn,query="SELECT nypd_shooting_historic.vic_sex, count(*)
+                                   FROM nypd_shooting_historic
+                                   GROUP BY vic_sex
+                                   ORDER BY count(*) desc;")
 
-st_read(conn,query="SELECT nypd_shooting_historic.vic_sex, count(*)
-                     FROM nypd_shooting_historic
-                     GROUP BY vic_sex
-                     ORDER BY count(*) desc;")
 
-st_read(conn,query="SELECT nypd_shooting_historic.precinct, count(*)
-                     FROM nypd_shooting_historic
-                     GROUP BY precinct
-                     ORDER BY count(*) desc;")
+#Precinct
+mode_precinct <- st_read(conn,query="SELECT nypd_shooting_historic.precinct, count(*)
+                                     FROM nypd_shooting_historic
+                                     GROUP BY precinct
+                                     ORDER BY count(*) desc;")
 
-st_read(conn,query="SELECT nypd_shooting_historic.occur_time, count(*)
-                     FROM nypd_shooting_historic
-                     GROUP BY occur_time
-                     ORDER BY count(*) desc;")
 
-st_read(conn,query='ALTER TABLE nypd_shooting_historic
-                    ALTER COLUMN occur_time TYPE time
-                    USING occur_time::time without time zone')
+#Time
+
+# st_read(conn,query='ALTER TABLE nypd_shooting_historic
+#                     ALTER COLUMN occur_time TYPE time
+#                     USING occur_time::time without time zone')
+# 
+
+mode_timevic <- st_read(conn,query="SELECT nypd_shooting_historic.occur_time, count(*)
+                                     FROM nypd_shooting_historic
+                                     GROUP BY occur_time
+                                     ORDER BY count(*) desc;")
+
+
+mode_timeshoot <- st_read(conn,query="SELECT
+                                      occur_time,
+                                      CASE
+                                      WHEN occur_time::time BETWEEN TIME '06:00:00' AND TIME '11:59:59' THEN 'Morning'
+                                      WHEN occur_time::time BETWEEN TIME '12:00:00' AND TIME '17:59:59' THEN 'Afternoon'
+                                      WHEN occur_time::time BETWEEN TIME '18:00:00' AND TIME '23:59:59' THEN 'Evening'
+                                      ELSE 'Night'
+                                      END AS time_of_day
+                                      FROM nypd_shooting_historic;")
+
+#Time classification
+mode_timeshoot <- table(mode_timeshoot$time_of_day)|>as.data.frame()
+
+#Maybe time average, time rank and so on ...
+
+#Neighborhood
+mode_neighborhood <- st_read(conn,query="SELECT nypd_shooting_historic.boro, count(*)
+                                         FROM nypd_shooting_historic
+                                         GROUP BY boro
+                                         ORDER BY count(*) desc;")
+
+#Age
+mode_agevic <- st_read(conn,query="SELECT nypd_shooting_historic.vic_age_group, count(*)
+                                   FROM nypd_shooting_historic
+                                   GROUP BY vic_age_group
+                                   ORDER BY count(*) desc;")
+
 
 
 
